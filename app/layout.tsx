@@ -5,9 +5,8 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'Trust Scan',
+  description: 'TRUSTSCAN is a Depin platform that verifies the authenticity of a Product and leverages Stablecoin rewards for its loyal users.',
 }
 
 export default function RootLayout({
