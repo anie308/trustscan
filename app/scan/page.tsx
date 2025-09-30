@@ -40,6 +40,7 @@ export default function ScanPage() {
   const [verificationResult, setVerificationResult] = useState<any>(null);
   const [cameraError, setError] = useState<string | null>(null);
 
+  console.log(pr, "product registry")
   // Verify product function
   const verifyProduct = async (productId: number, qrCodeHash: string) => {
     if (!pr) {
@@ -83,14 +84,17 @@ export default function ScanPage() {
 
   // Function to handle actual QR code scanning
   const handleQRCodeScan = async (qrData: string) => {
-    if (!pr) return;
+    // console.log(pr)
+    // if (!pr) return;
     try {
+      console.log(qrData)
+      
       // Parse QR code data - adjust this based on your QR code format
-      const qrDataObj = JSON.parse(qrData);
-      const productId = qrDataObj.productId;
-      const qrCodeHash = qrDataObj.qrCodeHash;
+      // const qrDataObj = JSON.parse(qrData);
+      // const productId = qrDataObj.productId;
+      // const qrCodeHash = qrDataObj.qrCodeHash;
 
-      await verifyProduct(productId, qrCodeHash);
+      // await verifyProduct(productId, qrCodeHash);
     } catch (err) {
       console.error("Error parsing QR code data:", err);
       setError("Invalid QR code format");
@@ -153,9 +157,10 @@ export default function ScanPage() {
             <CardContent className="p-0">
             <div className="relative   bg-muted flex items-center justify-center">
                 <Scanner
-                  onScan={(result: any) => handleQRCodeScan(result)}
+                onScan={(result) => console.log(result)}
+                  // onScan={(result: any) => handleQRCodeScan(result)}
                   onError={(error : any) => setError(error?.message)}
-                  constraints={{facingMode: "environment"}}
+                  constraints={{facingMode: "environment", width: {ideal: 1280}, height: {ideal: 720}  }}
                 />
               </div>
             </CardContent>

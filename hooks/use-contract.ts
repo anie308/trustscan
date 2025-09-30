@@ -61,8 +61,7 @@ export function useContracts(providerType: ProviderType) {
       const address = await walletSigner.getAddress();
       setWalletAddress(address);
 
-     const res =  await initContracts(walletSigner);
-     console.log(res)
+     await  initContracts(walletSigner);
     } catch (err) {
       console.error('Error connecting wallet:', err);
       setError('Failed to connect wallet.');
