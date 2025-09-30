@@ -1,65 +1,101 @@
-"use client"
+"use client";
 
-import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import Link from "next/link"
+import { useState, useRef, useEffect } from "react";
+import { ethers } from "ethers";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import Link from "next/link";
+import { useContracts } from "@/hooks/use-contract";
+import { Scanner } from '@yudiel/react-qr-scanner';
+// Extend window.ethereum
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
+// Import ABIs
 
 export default function ScanPage() {
-  const [isScanning, setIsScanning] = useState(false)
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
-  const [scannedData, setScannedData] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const [providerType, setProviderType] = useState<"sepolia" | "wallet">(
+    "sepolia"
+  );
+  const {
+    pa,
+    pr,
+    mr,
+    prAddress,
+    mrAddress,
+    walletAddress,
+    error,
+    connectWallet,
+  } = useContracts(providerType);
+  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [verificationResult, setVerificationResult] = useState<any>(null);
+  const [cameraError, setError] = useState<string | null>(null);
 
-  const startCamera = async () => {
+  // Verify product function
+  const verifyProduct = async (productId: number, qrCodeHash: string) => {
+    if (!pr) {
+      // setError('Product Registry contract not initialized');
+      return;
+    }
+
     try {
-      setError(null)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment", // Use back camera for better scanning
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      })
+      console.log(`Verifying product ${productId} with hash ${qrCodeHash}`);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        streamRef.current = stream
-        setHasPermission(true)
-        setIsScanning(true)
+      // Call the verifyProduct function
+      const result = await pr.verifyProduct(productId, qrCodeHash);
+      const [valid, product] = result;
+
+      console.log("Verification result:", valid, product);
+
+      if (valid) {
+        setVerificationResult({
+          valid: true,
+          product: {
+            productId: product.productId.toString(),
+            name: product.name,
+            manufacturer: product.manufacturer,
+            batchNumber: product.batchNumber,
+            expiryDate: product.expiryDate,
+            metadataURI: product.metadataURI,
+            active: product.active,
+            timestamp: new Date(Number(product.timestamp) * 1000).toLocaleDateString()
+          }
+        });
+        setScannedData(`Product ID: ${product.productId}, Name: ${product.name}`);
+      } else {
+        setVerificationResult({ valid: false });
+        setError('Product verification failed. This product may be recalled or invalid.');
       }
+    } catch (err: any) {
+      console.error('Error verifying product: ', err);
+      setError(`Error verifying product: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  // Function to handle actual QR code scanning
+  const handleQRCodeScan = async (qrData: string) => {
+    if (!pr) return;
+    try {
+      // Parse QR code data - adjust this based on your QR code format
+      const qrDataObj = JSON.parse(qrData);
+      const productId = qrDataObj.productId;
+      const qrCodeHash = qrDataObj.qrCodeHash;
+
+      await verifyProduct(productId, qrCodeHash);
     } catch (err) {
-      console.error("Error accessing camera:", err)
-      setError("Unable to access camera. Please ensure you have granted camera permissions.")
-      setHasPermission(false)
+      console.error("Error parsing QR code data:", err);
+      setError("Invalid QR code format");
     }
-  }
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
-      streamRef.current = null
-    }
-    setIsScanning(false)
-  }
-
-  const simulateScan = () => {
-    // Simulate a successful scan for demo purposes
-    const mockData = "TRUSTSCAN_PRODUCT_ID_12345"
-    setScannedData(mockData)
-    stopCamera()
-  }
-
-  useEffect(() => {
-    return () => {
-      // Cleanup camera stream on component unmount
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop())
-      }
-    }
-  }, [])
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -73,6 +109,15 @@ export default function ScanPage() {
             <span className="text-xl font-bold">TrustScan</span>
           </Link>
           <div className="flex items-center gap-3">
+            {walletAddress ? (
+              <p className="text-sm text-muted-foreground">
+                Connected: {walletAddress.substring(0, 6)}...
+                {walletAddress.substring(walletAddress.length - 4)}
+              </p>
+            ) : (
+              <Button onClick={connectWallet}>Connect Wallet</Button>
+            )}
+
             <Link href="/dashboard">
               <Button variant="outline">Dashboard</Button>
             </Link>
@@ -86,172 +131,176 @@ export default function ScanPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-4">Scan Product</h1>
+          <h1 className="text-4xl font-bold text-foreground mb-4">
+            Scan Product
+          </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Point your camera at a product QR code or barcode to verify its authenticity and view detailed information.
+            Point your camera at a product QR code to verify its authenticity.
           </p>
         </div>
+
+        {/* Contract Status */}
 
         <div className="grid gap-8 md:grid-cols-2">
           {/* Camera Section */}
           <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle>Camera Scanner</CardTitle>
-              <CardDescription>Position the QR code or barcode within the camera frame</CardDescription>
+              <CardDescription>
+                Position the QR code within the camera frame
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="relative aspect-video bg-muted flex items-center justify-center">
-                {isScanning ? (
-                  <div className="relative w-full h-full">
-                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                    {/* Scanning overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-64 h-64 border-2 border-primary rounded-lg relative">
-                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-lg"></div>
-                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-lg"></div>
-                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-lg"></div>
-                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-lg"></div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-primary font-medium bg-background/80 px-3 py-1 rounded">
-                            Align code within frame
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center p-8">
-                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                      <svg className="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">Camera Ready</h3>
-                    <p className="text-muted-foreground mb-4">Click the button below to start scanning</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-6 space-y-4">
-                {error && (
-                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                    <p className="text-destructive text-sm">{error}</p>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  {!isScanning ? (
-                    <Button onClick={startCamera} className="flex-1">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      Start Camera
-                    </Button>
-                  ) : (
-                    <>
-                      <Button onClick={simulateScan} className="flex-1">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V4a1 1 0 00-1-1H5a1 1 0 00-1 1v3a1 1 0 001 1zm12 0h2a1 1 0 001-1V4a1 1 0 00-1-1h-2a1 1 0 00-1 1v3a1 1 0 001 1zM5 20h2a1 1 0 001-1v-3a1 1 0 00-1-1H5a1 1 0 00-1 1v3a1 1 0 001 1z"
-                          />
-                        </svg>
-                        Simulate Scan
-                      </Button>
-                      <Button onClick={stopCamera} variant="outline">
-                        Stop Camera
-                      </Button>
-                    </>
-                  )}
-                </div>
+            <div className="relative   bg-muted flex items-center justify-center">
+                <Scanner
+                  onScan={(result: any) => handleQRCodeScan(result)}
+                  onError={(error : any) => setError(error?.message)}
+                  constraints={{facingMode: "environment"}}
+                />
               </div>
             </CardContent>
+
           </Card>
 
           {/* Results Section */}
           <Card>
             <CardHeader>
               <CardTitle>Scan Results</CardTitle>
-              <CardDescription>Product information will appear here after scanning</CardDescription>
+              <CardDescription>
+                Product information will appear here after scanning
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {scannedData ? (
+              {verificationResult ? (
                 <div className="space-y-6">
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <span className="font-semibold text-green-800">Product Verified</span>
+                  {verificationResult.valid ? (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg
+                          className="w-5 h-5 text-green-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span className="font-semibold text-green-800">
+                          Product Verified ✓
+                        </span>
+                      </div>
+                      <p className="text-green-700 text-sm">
+                        This product is authentic and registered on blockchain
+                      </p>
                     </div>
-                    <p className="text-green-700 text-sm">Scanned Code: {scannedData}</p>
-                  </div>
+                  ) : (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg
+                          className="w-5 h-5 text-red-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span className="font-semibold text-red-800">
+                          Verification Failed
+                        </span>
+                      </div>
+                      <p className="text-red-700 text-sm">
+                        This product could not be verified. It may be recalled
+                        or invalid.
+                      </p>
+                    </div>
+                  )}
 
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-semibold mb-2">Product Details</h4>
-                      <div className="grid gap-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Product Name:</span>
-                          <span>Premium Organic Juice</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Batch Number:</span>
-                          <span>BOJ2024001</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Manufacturing Date:</span>
-                          <span>2024-01-15</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Expiry Date:</span>
-                          <span>2024-07-15</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Status:</span>
-                          <span className="text-green-600 font-medium">Authentic</span>
+                  {verificationResult.product && (
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="font-semibold mb-2">Product Details</h4>
+                        <div className="grid gap-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              Product ID:
+                            </span>
+                            <span>{verificationResult.product.productId}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Name:</span>
+                            <span>{verificationResult.product.name}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              Batch Number:
+                            </span>
+                            <span>
+                              {verificationResult.product.batchNumber}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              Expiry Date:
+                            </span>
+                            <span>{verificationResult.product.expiryDate}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              Status:
+                            </span>
+                            <span
+                              className={`font-medium ${
+                                verificationResult.product.active
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {verificationResult.product.active
+                                ? "Active"
+                                : "Inactive"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              Manufacturer:
+                            </span>
+                            <span className="text-xs font-mono">
+                              {verificationResult.product.manufacturer.substring(
+                                0,
+                                10
+                              )}
+                              ...
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex gap-3">
-                      <Button onClick={() => setScannedData(null)} variant="outline" className="flex-1">
-                        Scan Another
-                      </Button>
-                      <Link href="/dashboard" className="flex-1">
-                        <Button className="w-full">View in Dashboard</Button>
-                      </Link>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => {
+                            setScannedData(null);
+                            setVerificationResult(null);
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Scan Another
+                        </Button>
+                        <Link href="/dashboard" className="flex-1">
+                          <Button className="w-full">View in Dashboard</Button>
+                        </Link>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -271,9 +320,12 @@ export default function ScanPage() {
                     </svg>
                   </div>
                   <h3 className="text-lg font-semibold mb-2">Ready to Scan</h3>
-                  <p className="text-muted-foreground">
-                    Start your camera and point it at a QR code or barcode to begin verification
-                  </p>
+                  {/* <p className='text-muted-foreground'>
+                    {prContract 
+                      ? 'Start your camera and point it at a QR code to begin verification'
+                      : 'Connect to blockchain to enable scanning'
+                    }
+                  </p> */}
                 </div>
               )}
             </CardContent>
@@ -291,18 +343,20 @@ export default function ScanPage() {
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-primary font-bold">1</span>
                 </div>
-                <h4 className="font-semibold mb-2">Position Product</h4>
+                <h4 className="font-semibold mb-2">Connect Wallet</h4>
                 <p className="text-sm text-muted-foreground">
-                  Hold your device steady and position the QR code or barcode within the camera frame
+                  Connect your wallet or use Sepolia network to interact with
+                  the blockchain
                 </p>
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-primary font-bold">2</span>
                 </div>
-                <h4 className="font-semibold mb-2">Align & Focus</h4>
+                <h4 className="font-semibold mb-2">Scan QR Code</h4>
                 <p className="text-sm text-muted-foreground">
-                  Ensure the code is clearly visible and well-lit for optimal scanning results
+                  Position the product QR code within the camera frame for
+                  scanning
                 </p>
               </div>
               <div className="text-center">
@@ -311,7 +365,8 @@ export default function ScanPage() {
                 </div>
                 <h4 className="font-semibold mb-2">View Results</h4>
                 <p className="text-sm text-muted-foreground">
-                  Get instant verification results and detailed product information
+                  Get instant blockchain verification and detailed product
+                  information
                 </p>
               </div>
             </div>
@@ -319,5 +374,5 @@ export default function ScanPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }

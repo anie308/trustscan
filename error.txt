@@ -1,0 +1,3 @@
+app-index.js:33 Error initializing contracts:  Error: could not decode result data (value="0x", info={ "method": "getProductRegistry", "signature": "getProductRegistry()" }, code=BAD_DATA, version=6.15.0)
+    at async initializeContracts (page.tsx:72:25)
+window.console.error	@	app-index.js:33
