@@ -13,9 +13,9 @@ export function CtaSection() {
         <p className="text-lg mb-8 opacity-90 max-w-2xl mx-auto text-balance">
           Join hundreds of brands building trust with blockchain verification
         </p>
-        <Link href="/scan">
+        <Link href="/waitlist">
           <Button size="lg" variant="secondary">
-            Verify Now
+            Join Waitlist
           </Button>
         </Link>
       </div>

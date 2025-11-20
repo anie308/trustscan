@@ -17,14 +17,12 @@ export function HeroSection() {
             Our blockchain-powered platform ensures every product is traceable, authentic, and tamper-proof
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Link href="/scan">
-              <Button size="lg">Verify Now</Button>
+            <Link href="/waitlist">
+              <Button size="lg">Join Waitlist</Button>
             </Link>
-            <Link href="/dashboard/products/add">
-              <Button variant="outline" size="lg">
-                Manufacturer
-              </Button>
-            </Link>
+            <Button variant="outline" size="lg" asChild>
+              <a href="#features">Learn More</a>
+            </Button>
           </div>
         </div>
         <div className="relative max-w-4xl mx-auto">

@@ -73,7 +73,7 @@ export function TechnologySection() {
   ]
 
   return (
-    <section className="py-20 px-4">
+    <section id="features" className="py-20 px-4">
       <div className="container max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm mb-4">

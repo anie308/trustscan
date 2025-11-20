@@ -1,6 +1,8 @@
 "use client"
 
 import type React from "react"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
   Sidebar,
   SidebarContent,
@@ -162,6 +164,12 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+
+  useEffect(() => {
+    // Redirect to home page - dashboard is blocked
+    router.push("/")
+  }, [router])
 
   const getPageTitle = () => {
     if (pathname === "/dashboard") return "Dashboard"

@@ -28,11 +28,8 @@ export function Header() {
           </nav>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/dashboard">
-            <Button variant="outline">Dashboard</Button>
-          </Link>
-          <Link href="/scan">
-            <Button>Verify Now</Button>
+          <Link href="/waitlist">
+            <Button>Join Waitlist</Button>
           </Link>
         </div>
       </div>
